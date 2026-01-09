@@ -308,18 +308,17 @@ app.get('/edit-players', (req, res) => {
       <ul class="player-list">
         ${players.map((player, index) => {
           const escapedPlayer = escapeHtml(player);
-          // For JavaScript strings, we need to escape quotes and backslashes
-          const jsEscapedPlayer = player.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+          const encodedPlayer = encodeURIComponent(player);
           return `
           <li class="player-item" id="player-${index}">
             <span class="player-name" id="name-${index}">${escapedPlayer}</span>
             <input type="text" class="edit-input" id="edit-${index}" value="${escapedPlayer}" style="display:none;">
-            <button onclick="editPlayer(${index})">Edit</button>
+            <button class="edit-btn" id="edit-btn-${index}" onclick="editPlayer(${index})">Edit</button>
             <button class="save-btn" id="save-${index}" onclick="savePlayer(${index})" style="display:none;">Save</button>
             <button class="cancel-btn" id="cancel-${index}" onclick="cancelEdit(${index})" style="display:none;">Cancel</button>
             <form method="POST" action="/edit-players/delete" style="display:inline;">
               <input type="hidden" name="playerName" value="${escapedPlayer}">
-              <button type="submit" class="delete-btn" onclick="return confirm('Are you sure you want to remove ' + decodeURIComponent('${encodeURIComponent(player)}') + '?')">Remove</button>
+              <button type="submit" class="delete-btn" id="delete-btn-${index}" onclick="return confirm('Are you sure you want to remove ' + decodeURIComponent('${encodedPlayer}') + '?')">Remove</button>
             </form>
           </li>
         `;
@@ -334,8 +333,8 @@ app.get('/edit-players', (req, res) => {
           document.getElementById('edit-' + index).style.display = 'inline';
           document.getElementById('save-' + index).style.display = 'inline';
           document.getElementById('cancel-' + index).style.display = 'inline';
-          document.querySelectorAll('#player-' + index + ' button')[0].style.display = 'none';
-          document.querySelectorAll('#player-' + index + ' button')[3].style.display = 'none';
+          document.getElementById('edit-btn-' + index).style.display = 'none';
+          document.getElementById('delete-btn-' + index).style.display = 'none';
         }
 
         function cancelEdit(index) {
@@ -345,8 +344,8 @@ app.get('/edit-players', (req, res) => {
           document.getElementById('edit-' + index).style.display = 'none';
           document.getElementById('save-' + index).style.display = 'none';
           document.getElementById('cancel-' + index).style.display = 'none';
-          document.querySelectorAll('#player-' + index + ' button')[0].style.display = 'inline';
-          document.querySelectorAll('#player-' + index + ' button')[3].style.display = 'inline';
+          document.getElementById('edit-btn-' + index).style.display = 'inline';
+          document.getElementById('delete-btn-' + index).style.display = 'inline';
         }
 
         function savePlayer(index) {
