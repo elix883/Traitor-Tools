@@ -435,11 +435,20 @@ app.get('/traitors', (req, res) => {
     `);
   }
   
+  // Find the other traitor
+  const otherTraitor = Object.keys(assignments).find(key => 
+    assignments[key] === 'Traitor' && key.toLowerCase() !== name.trim().toLowerCase()
+  );
+  
+  // Convert the other traitor's name back to original case from players array
+  const otherTraitorName = otherTraitor ? players.find(p => p.toLowerCase() === otherTraitor) : null;
+  
   res.send(`
     ${themeCSS}
     <div class="container">
       <h2>💀 Traitor Chat 💀</h2>
       <p>Welcome, <strong>${escapeHtml(name)}</strong>!</p>
+      ${otherTraitorName ? `<p>The other traitor is: <strong style="color: #ff4757;">${escapeHtml(otherTraitorName)}</strong></p>` : ''}
       <div class="chat-box">
         ${traitorChat.length > 0 ? traitorChat.join('<br>') : '<em style="color: #888;">No messages yet...</em>'}
       </div>
