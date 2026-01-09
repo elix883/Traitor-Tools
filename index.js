@@ -68,6 +68,8 @@ let traitorChat = [];       // Array of chat messages (strings)
 let murderedPlayers = [];   // Array of murdered player names in order
 
 app.use(bodyParser.urlencoded({ extended: false }));
+app.use(bodyParser.json());
+
 
 // Shared CSS styling for murder mystery theme
 const themeCSS = `
@@ -306,11 +308,23 @@ app.post('/admin', (req, res) => {
   // Create a copy of the players array and shuffle it
   let names = [...players].sort(() => Math.random() - 0.5);
   
+  // Ensure Ollie is always Faithful by removing from the pool before assigning traitors
+  const ollieIndex = names.findIndex(name => name.toLowerCase() === 'ollie');
+  let olliePlayer = null;
+  if (ollieIndex !== -1) {
+    olliePlayer = names.splice(ollieIndex, 1)[0];
+  }
+  
   // Allocate roles: first 2 are traitors, rest are faithful
   assignments = {};
   names.forEach((name, index) => {
     assignments[name.toLowerCase()] = (index < 2) ? 'Traitor' : 'Faithful';
   });
+  
+  // Always assign Ollie as Faithful
+  if (olliePlayer) {
+    assignments[olliePlayer.toLowerCase()] = 'Faithful';
+  }
   
   gameStarted = true;
   // Reset murdered players list when roles are generated
@@ -944,6 +958,10 @@ app.post('/edit-players/update', (req, res) => {
 });
 
 // Start the server
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
+
+module.exports = app;
