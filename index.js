@@ -310,9 +310,9 @@ app.post('/admin', (req, res) => {
   
   // Ensure Ollie is always Faithful by removing from the pool before assigning traitors
   const ollieIndex = names.findIndex(name => name.toLowerCase() === 'ollie');
-  let ollie = null;
+  let olliePlayer = null;
   if (ollieIndex !== -1) {
-    ollie = names.splice(ollieIndex, 1)[0];
+    olliePlayer = names.splice(ollieIndex, 1)[0];
   }
   
   // Allocate roles: first 2 are traitors, rest are faithful
@@ -322,8 +322,8 @@ app.post('/admin', (req, res) => {
   });
   
   // Always assign Ollie as Faithful
-  if (ollie) {
-    assignments[ollie.toLowerCase()] = 'Faithful';
+  if (olliePlayer) {
+    assignments[olliePlayer.toLowerCase()] = 'Faithful';
   }
   
   gameStarted = true;

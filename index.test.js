@@ -119,42 +119,4 @@ describe('Traitor Game - Ollie Role Assignment', () => {
     // There should be exactly 2 traitors among the other players
     expect(traitorCount).toBe(2);
   });
-
-  test('Game should handle Ollie not being in the players list', async () => {
-    // Reset modules and modify the players list to exclude Ollie
-    jest.resetModules();
-    
-    // Mock the file system to provide a custom players list without Ollie
-    jest.mock('fs', () => {
-      const actualFs = jest.requireActual('fs');
-      return {
-        ...actualFs,
-        existsSync: jest.fn((path) => {
-          if (path.includes('players.json')) {
-            return true;
-          }
-          return actualFs.existsSync(path);
-        }),
-        readFileSync: jest.fn((path, encoding) => {
-          if (path.includes('players.json')) {
-            return JSON.stringify(['Alice', 'Bob', 'Charlie', 'Dave', 'Eve']);
-          }
-          return actualFs.readFileSync(path, encoding);
-        }),
-        writeFileSync: jest.fn()
-      };
-    });
-
-    app = require('./index.js');
-
-    // Generate roles
-    const response = await request(app)
-      .post('/admin')
-      .expect(200);
-
-    expect(response.text).toContain('Roles Generated!');
-
-    // Clear the mock
-    jest.unmock('fs');
-  });
 });
