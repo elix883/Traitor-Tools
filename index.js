@@ -65,7 +65,7 @@ function escapeHtml(text) {
 let assignments = {};       // { name: role }
 let gameStarted = false;
 let traitorChat = [];       // Array of chat messages (strings)
-let murderVictim = null;    // Name of the murdered player
+let murderedPlayers = [];   // Array of murdered player names in order
 
 app.use(bodyParser.urlencoded({ extended: false }));
 
@@ -204,8 +204,57 @@ const themeCSS = `
 
 // ---------------- Home Route ----------------
 app.get('/', (req, res) => {
+  // Random quotes
+  const quotes = [
+    "To Dan!",
+    "Gentleman's Relish",
+    "I'll raise the boy.",
+    "Remember Dan Annoh?",
+    "Ollie, buy an EpiPen.",
+    "Buy Wibble Jelly!",
+    "Happy GRACEMAS!",
+    "Banished to the Annex? Bring a towel!",
+    "May I see it?",
+    "The problem with Arsenal is they always try and just walk it in.",
+    "I am happy. Happy new year.",
+    "I ain't had no fancy schoolin'."
+  ];
+  const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
+  
   res.send(`
     ${themeCSS}
+    <style>
+      .quote-box {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: rgba(0, 0, 0, 0.6);
+        border: 1px solid #c41e3a;
+        border-radius: 8px;
+        padding: 15px;
+        max-width: 300px;
+        font-style: italic;
+        font-size: 14px;
+        color: #ffa502;
+      }
+      .quote-author {
+        text-align: right;
+        margin-top: 8px;
+        font-size: 12px;
+        color: #888;
+      }
+      @media (max-width: 768px) {
+        .quote-box {
+          position: static;
+          margin-bottom: 20px;
+          max-width: 100%;
+        }
+      }
+    </style>
+    <div class="quote-box">
+      <div>"${escapeHtml(randomQuote)}"</div>
+      <div class="quote-author">– Unknown</div>
+    </div>
     <div class="container">
       <h1>🔪 Welcome to the Traitor Game 🔪</h1>
       <p>Choose your path wisely...</p>
@@ -214,6 +263,7 @@ app.get('/', (req, res) => {
         <li><a href="/player">👤 Player Login</a></li>
         <li><a href="/traitor-login">💀 Traitor Login</a></li>
         <li><a href="/murder">🗡️ Murder Selection</a></li>
+        <li><a href="/murdered">⚰️ Murdered Players</a></li>
         <li><a href="/edit-players">📝 Edit Player List</a></li>
       </ul>
     </div>
@@ -235,6 +285,7 @@ app.get('/admin', (req, res) => {
       <form method="POST" action="/admin">
         <button type="submit">Generate Roles</button>
       </form>
+      <p style="margin-top: 20px;"><a href="/">← Back to Home</a></p>
     </div>
   `);
 });
@@ -262,6 +313,8 @@ app.post('/admin', (req, res) => {
   });
   
   gameStarted = true;
+  // Reset murdered players list when roles are generated
+  murderedPlayers = [];
   
   res.send(`
     ${themeCSS}
@@ -289,6 +342,7 @@ app.get('/player', (req, res) => {
         </select>
         <button type="submit">See My Role</button>
       </form>
+      <p style="margin-top: 20px;"><a href="/">← Back to Home</a></p>
     </div>
   `);
 });
@@ -338,6 +392,7 @@ app.get('/traitor-login', (req, res) => {
         </select>
         <button type="submit">Login</button>
       </form>
+      <p style="margin-top: 20px;"><a href="/">← Back to Home</a></p>
     </div>
   `);
 });
@@ -424,15 +479,11 @@ app.post('/traitors', (req, res) => {
 
 // ---------------- Murder Routes ----------------
 
-// GET /murder: Display current murder status and murder selection form
+// GET /murder: Display murder selection form with unmurder options
 app.get('/murder', (req, res) => {
-  let victimText = murderVictim 
-    ? `<h2 style="color: #ff4757;">⚰️ ${escapeHtml(murderVictim)} was murdered! ⚰️</h2>` 
-    : "<h2>🔪 No murder yet 🔪</h2>";
   res.send(`
     ${themeCSS}
     <div class="container">
-      ${victimText}
       <h2>🗡️ Traitor Murder Selection 🗡️</h2>
       <form method="POST" action="/murder">
         <label>Select target to murder:</label>
@@ -442,7 +493,15 @@ app.get('/murder', (req, res) => {
         </select>
         <button type="submit">Murder!</button>
       </form>
-      <p style="margin-top: 20px;"><a href="/">← Return Home</a></p>
+      ${murderedPlayers.length > 0 ? `
+        <form method="GET" action="/unmurder-last-confirm" style="margin-top: 15px;">
+          <button type="submit" style="background: linear-gradient(135deg, #ffa502 0%, #ff6348 100%);">Unmurder Last</button>
+        </form>
+        <form method="GET" action="/unmurder-all-confirm" style="margin-top: 15px;">
+          <button type="submit" style="background: linear-gradient(135deg, #5fb3f6 0%, #3742fa 100%);">Unmurder All</button>
+        </form>
+      ` : ''}
+      <p style="margin-top: 20px;"><a href="/">← Back to Home</a></p>
     </div>
   `);
 });
@@ -460,8 +519,123 @@ app.post('/murder', (req, res) => {
       </div>
     `);
   }
-  murderVictim = target.trim();
-  res.redirect('/murder');
+  murderedPlayers.push(target.trim());
+  res.send(`
+    ${themeCSS}
+    <div class="container">
+      <h2 style="color: #ff4757;">⚰️ ${escapeHtml(target.trim())} was murdered! ⚰️</h2>
+      <p><a href="/murder">← Back to Murder Selection</a></p>
+      <p><a href="/murdered">View All Murdered Players</a></p>
+      <p><a href="/">Return Home</a></p>
+    </div>
+  `);
+});
+
+// GET /murdered: Display list of all murdered players
+app.get('/murdered', (req, res) => {
+  res.send(`
+    ${themeCSS}
+    <div class="container">
+      <h2>⚰️ Murdered Players ⚰️</h2>
+      ${murderedPlayers.length > 0 ? `
+        <p style="color: #ff4757; font-size: 20px; margin-bottom: 20px;">Total murdered: ${murderedPlayers.length}</p>
+        <ul>
+          ${murderedPlayers.map((name, index) => `<li>${index + 1}. ${escapeHtml(name)}</li>`).join('')}
+        </ul>
+      ` : `
+        <p style="font-size: 20px; color: #888;">No players have been murdered yet.</p>
+      `}
+      <p style="margin-top: 20px;"><a href="/">← Back to Home</a></p>
+    </div>
+  `);
+});
+
+// GET /unmurder-last-confirm: Confirmation page for unmurdering the last player
+app.get('/unmurder-last-confirm', (req, res) => {
+  if (murderedPlayers.length === 0) {
+    return res.send(`
+      ${themeCSS}
+      <div class="container">
+        <h2>⚠️ No Players to Unmurder ⚠️</h2>
+        <p>There are no murdered players to restore.</p>
+        <p><a href="/murder">← Back to Murder Selection</a></p>
+      </div>
+    `);
+  }
+  
+  const lastMurdered = murderedPlayers[murderedPlayers.length - 1];
+  res.send(`
+    ${themeCSS}
+    <div class="container">
+      <h2>⚠️ Confirm Unmurder Last ⚠️</h2>
+      <p style="font-size: 20px; color: #ffa502;">Are you sure you want to unmurder <strong>${escapeHtml(lastMurdered)}</strong>?</p>
+      <form method="POST" action="/unmurder-last">
+        <button type="submit" style="background: linear-gradient(135deg, #ffa502 0%, #ff6348 100%);">Yes, Unmurder ${escapeHtml(lastMurdered)}</button>
+      </form>
+      <p style="margin-top: 15px;"><a href="/murder">← Cancel and Go Back</a></p>
+    </div>
+  `);
+});
+
+// POST /unmurder-last: Remove the last murdered player
+app.post('/unmurder-last', (req, res) => {
+  if (murderedPlayers.length === 0) {
+    return res.redirect('/murder');
+  }
+  
+  const unmurderedPlayer = murderedPlayers.pop();
+  res.send(`
+    ${themeCSS}
+    <div class="container">
+      <h2 style="color: #5fb3f6;">✅ ${escapeHtml(unmurderedPlayer)} has been unmurdered! ✅</h2>
+      <p><a href="/murder">← Back to Murder Selection</a></p>
+      <p><a href="/murdered">View All Murdered Players</a></p>
+      <p><a href="/">Return Home</a></p>
+    </div>
+  `);
+});
+
+// GET /unmurder-all-confirm: Confirmation page for unmurdering all players
+app.get('/unmurder-all-confirm', (req, res) => {
+  if (murderedPlayers.length === 0) {
+    return res.send(`
+      ${themeCSS}
+      <div class="container">
+        <h2>⚠️ No Players to Unmurder ⚠️</h2>
+        <p>There are no murdered players to restore.</p>
+        <p><a href="/murder">← Back to Murder Selection</a></p>
+      </div>
+    `);
+  }
+  
+  res.send(`
+    ${themeCSS}
+    <div class="container">
+      <h2>⚠️ Confirm Unmurder All ⚠️</h2>
+      <p style="font-size: 20px; color: #ffa502;">Are you sure you want to unmurder all ${murderedPlayers.length} player(s)?</p>
+      <ul>
+        ${murderedPlayers.map((name, index) => `<li>${index + 1}. ${escapeHtml(name)}</li>`).join('')}
+      </ul>
+      <form method="POST" action="/unmurder-all">
+        <button type="submit" style="background: linear-gradient(135deg, #5fb3f6 0%, #3742fa 100%);">Yes, Unmurder All</button>
+      </form>
+      <p style="margin-top: 15px;"><a href="/murder">← Cancel and Go Back</a></p>
+    </div>
+  `);
+});
+
+// POST /unmurder-all: Reset all murdered players
+app.post('/unmurder-all', (req, res) => {
+  const count = murderedPlayers.length;
+  murderedPlayers = [];
+  res.send(`
+    ${themeCSS}
+    <div class="container">
+      <h2 style="color: #5fb3f6;">✅ All ${count} player(s) have been unmurdered! ✅</h2>
+      <p><a href="/murder">← Back to Murder Selection</a></p>
+      <p><a href="/">Return Home</a></p>
+    </div>
+  `);
 });
 
 // ---------------- Player List Editor Routes ----------------
@@ -469,52 +643,125 @@ app.post('/murder', (req, res) => {
 // GET /edit-players: Display player list editor
 app.get('/edit-players', (req, res) => {
   res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Edit Player List</title>
-      <style>
-        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
-        h1 { color: #333; }
-        .player-list { list-style: none; padding: 0; }
-        .player-item { 
-          display: flex; 
-          align-items: center; 
-          margin: 10px 0; 
-          padding: 10px; 
-          background: #f5f5f5; 
-          border-radius: 5px; 
-        }
-        .player-name { flex: 1; font-size: 16px; }
-        .edit-input { flex: 1; font-size: 16px; padding: 5px; }
-        button { 
-          padding: 5px 15px; 
-          margin-left: 5px; 
-          cursor: pointer; 
-          border: none; 
-          border-radius: 3px; 
-          background: #007bff; 
-          color: white; 
-        }
-        button:hover { background: #0056b3; }
-        .delete-btn { background: #dc3545; }
-        .delete-btn:hover { background: #c82333; }
-        .save-btn { background: #28a745; }
-        .save-btn:hover { background: #218838; }
-        .cancel-btn { background: #6c757d; }
-        .cancel-btn:hover { background: #5a6268; }
-        .add-player { margin: 20px 0; padding: 15px; background: #e9ecef; border-radius: 5px; }
-        .add-player input { padding: 8px; font-size: 16px; width: 300px; }
-        .add-player button { padding: 8px 20px; }
-        .error { color: #dc3545; margin: 10px 0; }
-        .success { color: #28a745; margin: 10px 0; }
-        .back-link { display: inline-block; margin-top: 20px; }
-      </style>
-    </head>
-    <body>
-      <h1>Edit Player List</h1>
-      ${req.query.error ? `<p class="error">${escapeHtml(req.query.error)}</p>` : ''}
-      ${req.query.success ? `<p class="success">${escapeHtml(req.query.success)}</p>` : ''}
+    ${themeCSS}
+    <style>
+      .player-list { list-style: none; padding: 0; margin: 20px 0; }
+      .player-item { 
+        display: flex; 
+        align-items: center; 
+        margin: 10px 0; 
+        padding: 12px; 
+        background: rgba(255, 255, 255, 0.05);
+        border-left: 3px solid #c41e3a;
+        border-radius: 5px; 
+      }
+      .player-name { flex: 1; font-size: 18px; color: #e8e8e8; }
+      .edit-input { 
+        flex: 1; 
+        font-size: 16px; 
+        padding: 8px; 
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid #c41e3a;
+        border-radius: 5px;
+        color: #e8e8e8;
+        font-family: 'Georgia', 'Palatino', serif;
+      }
+      .edit-input:focus {
+        outline: none;
+        border-color: #ff4757;
+        background: rgba(255, 255, 255, 0.15);
+      }
+      .action-btn { 
+        padding: 8px 15px; 
+        margin-left: 5px; 
+        cursor: pointer; 
+        border: none; 
+        border-radius: 5px; 
+        font-weight: bold;
+        font-family: 'Georgia', 'Palatino', serif;
+        font-size: 14px;
+        letter-spacing: 1px;
+        transition: all 0.3s;
+        width: auto;
+      }
+      .edit-btn { 
+        background: linear-gradient(135deg, #ffa502 0%, #ff6348 100%); 
+        color: white;
+      }
+      .edit-btn:hover { background: linear-gradient(135deg, #ff6348 0%, #ffa502 100%); }
+      .delete-btn { 
+        background: linear-gradient(135deg, #c41e3a 0%, #8b0000 100%); 
+        color: white;
+      }
+      .delete-btn:hover { background: linear-gradient(135deg, #ff4757 0%, #c41e3a 100%); }
+      .save-btn { 
+        background: linear-gradient(135deg, #5fb3f6 0%, #3742fa 100%); 
+        color: white;
+      }
+      .save-btn:hover { background: linear-gradient(135deg, #3742fa 0%, #5fb3f6 100%); }
+      .cancel-btn { 
+        background: linear-gradient(135deg, #747d8c 0%, #57606f 100%); 
+        color: white;
+      }
+      .cancel-btn:hover { background: linear-gradient(135deg, #57606f 0%, #747d8c 100%); }
+      .add-player { 
+        margin: 20px 0; 
+        padding: 20px; 
+        background: rgba(255, 255, 255, 0.05); 
+        border: 2px solid #c41e3a;
+        border-radius: 10px; 
+      }
+      .add-player h3 {
+        color: #ffa502;
+        font-size: 22px;
+        margin-bottom: 15px;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+      }
+      .add-player input { 
+        padding: 12px; 
+        font-size: 16px; 
+        width: calc(100% - 24px);
+        margin-bottom: 15px;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid #c41e3a;
+        border-radius: 5px;
+        color: #e8e8e8;
+        font-family: 'Georgia', 'Palatino', serif;
+      }
+      .add-player input:focus {
+        outline: none;
+        border-color: #ff4757;
+        background: rgba(255, 255, 255, 0.15);
+      }
+      .error { 
+        color: #ff4757; 
+        margin: 15px 0; 
+        padding: 15px;
+        background: rgba(255, 71, 87, 0.2);
+        border-left: 3px solid #ff4757;
+        border-radius: 5px;
+        font-size: 16px;
+      }
+      .success { 
+        color: #5fb3f6; 
+        margin: 15px 0; 
+        padding: 15px;
+        background: rgba(95, 179, 246, 0.2);
+        border-left: 3px solid #5fb3f6;
+        border-radius: 5px;
+        font-size: 16px;
+      }
+      .player-count {
+        color: #ffa502;
+        font-size: 22px;
+        margin: 20px 0 15px 0;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+      }
+    </style>
+    <div class="container">
+      <h1>📝 Edit Player List 📝</h1>
+      ${req.query.error ? `<div class="error">❌ ${escapeHtml(req.query.error)}</div>` : ''}
+      ${req.query.success ? `<div class="success">✅ ${escapeHtml(req.query.success)}</div>` : ''}
       
       <div class="add-player">
         <h3>Add New Player</h3>
@@ -524,7 +771,7 @@ app.get('/edit-players', (req, res) => {
         </form>
       </div>
 
-      <h3>Current Players (${players.length})</h3>
+      <h3 class="player-count">Current Players (${players.length})</h3>
       <ul class="player-list">
         ${players.map((player, index) => {
           const escapedPlayer = escapeHtml(player);
@@ -533,19 +780,19 @@ app.get('/edit-players', (req, res) => {
           <li class="player-item" id="player-${index}">
             <span class="player-name" id="name-${index}">${escapedPlayer}</span>
             <input type="text" class="edit-input" id="edit-${index}" value="${escapedPlayer}" style="display:none;">
-            <button class="edit-btn" id="edit-btn-${index}" onclick="editPlayer(${index})">Edit</button>
-            <button class="save-btn" id="save-${index}" onclick="savePlayer(${index})" style="display:none;">Save</button>
-            <button class="cancel-btn" id="cancel-${index}" onclick="cancelEdit(${index})" style="display:none;">Cancel</button>
+            <button class="action-btn edit-btn" id="edit-btn-${index}" onclick="editPlayer(${index})">Edit</button>
+            <button class="action-btn save-btn" id="save-${index}" onclick="savePlayer(${index})" style="display:none;">Save</button>
+            <button class="action-btn cancel-btn" id="cancel-${index}" onclick="cancelEdit(${index})" style="display:none;">Cancel</button>
             <form method="POST" action="/edit-players/delete" style="display:inline;">
               <input type="hidden" name="playerName" value="${escapedPlayer}">
-              <button type="submit" class="delete-btn" id="delete-btn-${index}" onclick="return confirm('Are you sure you want to remove ' + decodeURIComponent('${encodedPlayer}') + '?')">Remove</button>
+              <button type="submit" class="action-btn delete-btn" id="delete-btn-${index}" onclick="return confirm('Are you sure you want to remove ' + decodeURIComponent('${encodedPlayer}') + '?')">Remove</button>
             </form>
           </li>
         `;
         }).join('')}
       </ul>
 
-      <a href="/" class="back-link">← Back to Home</a>
+      <p style="margin-top: 20px;"><a href="/">← Back to Home</a></p>
 
       <script>
         function editPlayer(index) {
@@ -597,8 +844,7 @@ app.get('/edit-players', (req, res) => {
           form.submit();
         }
       </script>
-    </body>
-    </html>
+    </div>
   `);
 });
 
@@ -627,7 +873,7 @@ app.post('/edit-players/add', (req, res) => {
   gameStarted = false;
   assignments = {};
   traitorChat = [];
-  murderVictim = null;
+  murderedPlayers = [];
   
   res.redirect('/edit-players?success=' + encodeURIComponent('Player "' + newPlayer + '" added successfully'));
 });
@@ -645,7 +891,7 @@ app.post('/edit-players/delete', (req, res) => {
     gameStarted = false;
     assignments = {};
     traitorChat = [];
-    murderVictim = null;
+    murderedPlayers = [];
     
     res.redirect('/edit-players?success=' + encodeURIComponent('Player "' + playerToRemove + '" removed successfully'));
   } else {
@@ -680,7 +926,7 @@ app.post('/edit-players/update', (req, res) => {
     gameStarted = false;
     assignments = {};
     traitorChat = [];
-    murderVictim = null;
+    murderedPlayers = [];
     
     res.redirect('/edit-players?success=' + encodeURIComponent('Player updated from "' + oldName + '" to "' + newName + '"'));
   } else {
