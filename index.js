@@ -450,6 +450,16 @@ app.get('/murder', (req, res) => {
 // POST /murder: Process murder selection (simplified - no authentication)
 app.post('/murder', (req, res) => {
   const { target } = req.body;
+  if (!target || !target.trim()) {
+    return res.send(`
+      ${themeCSS}
+      <div class="container">
+        <h2>❌ Error ❌</h2>
+        <p>Please select a valid target!</p>
+        <p><a href="/murder">← Go Back</a></p>
+      </div>
+    `);
+  }
   murderVictim = target.trim();
   res.redirect('/murder');
 });
