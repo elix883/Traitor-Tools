@@ -230,7 +230,7 @@ app.get('/admin', (req, res) => {
       <h2>🎭 Admin Panel 🎭</h2>
       <p>The players are preset:</p>
       <ul>
-        ${players.map(name => `<li>${name}</li>`).join('')}
+        ${players.map(name => `<li>${escapeHtml(name)}</li>`).join('')}
       </ul>
       <form method="POST" action="/admin">
         <button type="submit">Generate Roles</button>
@@ -285,7 +285,7 @@ app.get('/player', (req, res) => {
         <label>Select your name:</label>
         <select name="playerName" required>
           <option value="">-- Select a player --</option>
-          ${players.map(name => `<option value="${name}">${name}</option>`).join('')}
+          ${players.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('')}
         </select>
         <button type="submit">See My Role</button>
       </form>
@@ -334,7 +334,7 @@ app.get('/traitor-login', (req, res) => {
         <label>Select your name:</label>
         <select name="name" required>
           <option value="">-- Select a player --</option>
-          ${players.map(name => `<option value="${name}">${name}</option>`).join('')}
+          ${players.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('')}
         </select>
         <button type="submit">Login</button>
       </form>
@@ -384,7 +384,7 @@ app.get('/traitors', (req, res) => {
     ${themeCSS}
     <div class="container">
       <h2>💀 Traitor Chat 💀</h2>
-      <p>Welcome, <strong>${name}</strong>!</p>
+      <p>Welcome, <strong>${escapeHtml(name)}</strong>!</p>
       <div class="chat-box">
         ${traitorChat.length > 0 ? traitorChat.join('<br>') : '<em style="color: #888;">No messages yet...</em>'}
       </div>
@@ -427,7 +427,7 @@ app.post('/traitors', (req, res) => {
 // GET /murder: Display current murder status and murder selection form
 app.get('/murder', (req, res) => {
   let victimText = murderVictim 
-    ? `<h2 style="color: #ff4757;">⚰️ ${murderVictim} was murdered! ⚰️</h2>` 
+    ? `<h2 style="color: #ff4757;">⚰️ ${escapeHtml(murderVictim)} was murdered! ⚰️</h2>` 
     : "<h2>🔪 No murder yet 🔪</h2>";
   res.send(`
     ${themeCSS}
@@ -438,7 +438,7 @@ app.get('/murder', (req, res) => {
         <label>Select target to murder:</label>
         <select name="target" required>
           <option value="">-- Select a player --</option>
-          ${players.map(name => `<option value="${name}">${name}</option>`).join('')}
+          ${players.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('')}
         </select>
         <button type="submit">Murder!</button>
       </form>
