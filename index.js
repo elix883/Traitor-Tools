@@ -1,10 +1,44 @@
 const express = require('express');
 const bodyParser = require('body-parser');
+const fs = require('fs');
+const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Fixed list of players
-const players = ["Alina", "Alex", "Ollie", "Bob", "Gus", "DanO", "DanE", "Vicky", "Grace", "Lottie"];
+// Path to the players data file
+const playersFilePath = path.join(__dirname, 'players.json');
+
+// Default list of players
+const defaultPlayers = ["Alina", "Alex", "Ollie", "Bob", "Gus", "DanO", "DanE", "Vicky", "Grace", "Lottie"];
+
+// Load players from file or use default
+let players = [];
+function loadPlayers() {
+  try {
+    if (fs.existsSync(playersFilePath)) {
+      const data = fs.readFileSync(playersFilePath, 'utf8');
+      players = JSON.parse(data);
+    } else {
+      players = [...defaultPlayers];
+      savePlayers();
+    }
+  } catch (error) {
+    console.error('Error loading players:', error);
+    players = [...defaultPlayers];
+  }
+}
+
+// Save players to file
+function savePlayers() {
+  try {
+    fs.writeFileSync(playersFilePath, JSON.stringify(players, null, 2), 'utf8');
+  } catch (error) {
+    console.error('Error saving players:', error);
+  }
+}
+
+// Initialize players on startup
+loadPlayers();
 
 // In-memory storage for game data
 let assignments = {};       // { name: role }
@@ -23,6 +57,7 @@ app.get('/', (req, res) => {
       <li><a href="/player">Player Login</a></li>
       <li><a href="/traitor-login">Traitor Login</a></li>
       <li><a href="/murder">Murder Selection</a></li>
+      <li><a href="/edit-players">Edit Player List</a></li>
     </ul>
   `);
 });
@@ -186,6 +221,226 @@ app.post('/murder', (req, res) => {
   }
   murderVictim = target.trim();
   res.redirect('/murder');
+});
+
+// ---------------- Player List Editor Routes ----------------
+
+// GET /edit-players: Display player list editor
+app.get('/edit-players', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Edit Player List</title>
+      <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+        h1 { color: #333; }
+        .player-list { list-style: none; padding: 0; }
+        .player-item { 
+          display: flex; 
+          align-items: center; 
+          margin: 10px 0; 
+          padding: 10px; 
+          background: #f5f5f5; 
+          border-radius: 5px; 
+        }
+        .player-name { flex: 1; font-size: 16px; }
+        .edit-input { flex: 1; font-size: 16px; padding: 5px; }
+        button { 
+          padding: 5px 15px; 
+          margin-left: 5px; 
+          cursor: pointer; 
+          border: none; 
+          border-radius: 3px; 
+          background: #007bff; 
+          color: white; 
+        }
+        button:hover { background: #0056b3; }
+        .delete-btn { background: #dc3545; }
+        .delete-btn:hover { background: #c82333; }
+        .save-btn { background: #28a745; }
+        .save-btn:hover { background: #218838; }
+        .cancel-btn { background: #6c757d; }
+        .cancel-btn:hover { background: #5a6268; }
+        .add-player { margin: 20px 0; padding: 15px; background: #e9ecef; border-radius: 5px; }
+        .add-player input { padding: 8px; font-size: 16px; width: 300px; }
+        .add-player button { padding: 8px 20px; }
+        .error { color: #dc3545; margin: 10px 0; }
+        .success { color: #28a745; margin: 10px 0; }
+        .back-link { display: inline-block; margin-top: 20px; }
+      </style>
+    </head>
+    <body>
+      <h1>Edit Player List</h1>
+      ${req.query.error ? `<p class="error">${req.query.error}</p>` : ''}
+      ${req.query.success ? `<p class="success">${req.query.success}</p>` : ''}
+      
+      <div class="add-player">
+        <h3>Add New Player</h3>
+        <form method="POST" action="/edit-players/add">
+          <input type="text" name="playerName" placeholder="Enter player name" required>
+          <button type="submit">Add Player</button>
+        </form>
+      </div>
+
+      <h3>Current Players (${players.length})</h3>
+      <ul class="player-list">
+        ${players.map((player, index) => `
+          <li class="player-item" id="player-${index}">
+            <span class="player-name" id="name-${index}">${player}</span>
+            <input type="text" class="edit-input" id="edit-${index}" value="${player}" style="display:none;">
+            <button onclick="editPlayer(${index})">Edit</button>
+            <button class="save-btn" id="save-${index}" onclick="savePlayer(${index})" style="display:none;">Save</button>
+            <button class="cancel-btn" id="cancel-${index}" onclick="cancelEdit(${index})" style="display:none;">Cancel</button>
+            <form method="POST" action="/edit-players/delete" style="display:inline;">
+              <input type="hidden" name="playerName" value="${player}">
+              <button type="submit" class="delete-btn" onclick="return confirm('Are you sure you want to remove ${player}?')">Remove</button>
+            </form>
+          </li>
+        `).join('')}
+      </ul>
+
+      <a href="/" class="back-link">← Back to Home</a>
+
+      <script>
+        function editPlayer(index) {
+          document.getElementById('name-' + index).style.display = 'none';
+          document.getElementById('edit-' + index).style.display = 'inline';
+          document.getElementById('save-' + index).style.display = 'inline';
+          document.getElementById('cancel-' + index).style.display = 'inline';
+          document.querySelectorAll('#player-' + index + ' button')[0].style.display = 'none';
+          document.querySelectorAll('#player-' + index + ' button')[3].style.display = 'none';
+        }
+
+        function cancelEdit(index) {
+          const originalName = document.getElementById('name-' + index).textContent;
+          document.getElementById('edit-' + index).value = originalName;
+          document.getElementById('name-' + index).style.display = 'inline';
+          document.getElementById('edit-' + index).style.display = 'none';
+          document.getElementById('save-' + index).style.display = 'none';
+          document.getElementById('cancel-' + index).style.display = 'none';
+          document.querySelectorAll('#player-' + index + ' button')[0].style.display = 'inline';
+          document.querySelectorAll('#player-' + index + ' button')[3].style.display = 'inline';
+        }
+
+        function savePlayer(index) {
+          const oldName = document.getElementById('name-' + index).textContent;
+          const newName = document.getElementById('edit-' + index).value.trim();
+          
+          if (!newName) {
+            alert('Player name cannot be empty!');
+            return;
+          }
+
+          const form = document.createElement('form');
+          form.method = 'POST';
+          form.action = '/edit-players/update';
+          
+          const oldInput = document.createElement('input');
+          oldInput.type = 'hidden';
+          oldInput.name = 'oldName';
+          oldInput.value = oldName;
+          
+          const newInput = document.createElement('input');
+          newInput.type = 'hidden';
+          newInput.name = 'newName';
+          newInput.value = newName;
+          
+          form.appendChild(oldInput);
+          form.appendChild(newInput);
+          document.body.appendChild(form);
+          form.submit();
+        }
+      </script>
+    </body>
+    </html>
+  `);
+});
+
+// POST /edit-players/add: Add a new player
+app.post('/edit-players/add', (req, res) => {
+  const newPlayer = req.body.playerName.trim();
+  
+  // Validation
+  if (!newPlayer) {
+    return res.redirect('/edit-players?error=' + encodeURIComponent('Player name cannot be empty'));
+  }
+  
+  // Check for duplicates (case-insensitive)
+  const playerLower = newPlayer.toLowerCase();
+  const isDuplicate = players.some(p => p.toLowerCase() === playerLower);
+  
+  if (isDuplicate) {
+    return res.redirect('/edit-players?error=' + encodeURIComponent('Player "' + newPlayer + '" already exists'));
+  }
+  
+  // Add player and save
+  players.push(newPlayer);
+  savePlayers();
+  
+  // Reset game state when player list changes
+  gameStarted = false;
+  assignments = {};
+  traitorChat = [];
+  murderVictim = null;
+  
+  res.redirect('/edit-players?success=' + encodeURIComponent('Player "' + newPlayer + '" added successfully'));
+});
+
+// POST /edit-players/delete: Remove a player
+app.post('/edit-players/delete', (req, res) => {
+  const playerToRemove = req.body.playerName;
+  
+  const index = players.indexOf(playerToRemove);
+  if (index > -1) {
+    players.splice(index, 1);
+    savePlayers();
+    
+    // Reset game state when player list changes
+    gameStarted = false;
+    assignments = {};
+    traitorChat = [];
+    murderVictim = null;
+    
+    res.redirect('/edit-players?success=' + encodeURIComponent('Player "' + playerToRemove + '" removed successfully'));
+  } else {
+    res.redirect('/edit-players?error=' + encodeURIComponent('Player not found'));
+  }
+});
+
+// POST /edit-players/update: Update a player's name
+app.post('/edit-players/update', (req, res) => {
+  const oldName = req.body.oldName;
+  const newName = req.body.newName.trim();
+  
+  // Validation
+  if (!newName) {
+    return res.redirect('/edit-players?error=' + encodeURIComponent('Player name cannot be empty'));
+  }
+  
+  // Check if the new name already exists (case-insensitive), excluding the current player
+  const newNameLower = newName.toLowerCase();
+  const isDuplicate = players.some(p => p.toLowerCase() === newNameLower && p !== oldName);
+  
+  if (isDuplicate) {
+    return res.redirect('/edit-players?error=' + encodeURIComponent('Player "' + newName + '" already exists'));
+  }
+  
+  const index = players.indexOf(oldName);
+  if (index > -1) {
+    players[index] = newName;
+    savePlayers();
+    
+    // Reset game state when player list changes
+    gameStarted = false;
+    assignments = {};
+    traitorChat = [];
+    murderVictim = null;
+    
+    res.redirect('/edit-players?success=' + encodeURIComponent('Player updated from "' + oldName + '" to "' + newName + '"'));
+  } else {
+    res.redirect('/edit-players?error=' + encodeURIComponent('Player not found'));
+  }
 });
 
 // Start the server
