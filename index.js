@@ -17,7 +17,16 @@ function loadPlayers() {
   try {
     if (fs.existsSync(playersFilePath)) {
       const data = fs.readFileSync(playersFilePath, 'utf8');
-      players = JSON.parse(data);
+      const parsed = JSON.parse(data);
+      
+      // Validate that parsed data is an array of strings
+      if (Array.isArray(parsed) && parsed.every(item => typeof item === 'string')) {
+        players = parsed;
+      } else {
+        console.error('Invalid players.json format, using default players');
+        players = [...defaultPlayers];
+        savePlayers();
+      }
     } else {
       players = [...defaultPlayers];
       savePlayers();
@@ -39,6 +48,18 @@ function savePlayers() {
 
 // Initialize players on startup
 loadPlayers();
+
+// Helper function to escape HTML to prevent XSS
+function escapeHtml(text) {
+  const map = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;'
+  };
+  return text.replace(/[&<>"']/g, m => map[m]);
+}
 
 // In-memory storage for game data
 let assignments = {};       // { name: role }
@@ -272,8 +293,8 @@ app.get('/edit-players', (req, res) => {
     </head>
     <body>
       <h1>Edit Player List</h1>
-      ${req.query.error ? `<p class="error">${req.query.error}</p>` : ''}
-      ${req.query.success ? `<p class="success">${req.query.success}</p>` : ''}
+      ${req.query.error ? `<p class="error">${escapeHtml(req.query.error)}</p>` : ''}
+      ${req.query.success ? `<p class="success">${escapeHtml(req.query.success)}</p>` : ''}
       
       <div class="add-player">
         <h3>Add New Player</h3>
@@ -285,19 +306,24 @@ app.get('/edit-players', (req, res) => {
 
       <h3>Current Players (${players.length})</h3>
       <ul class="player-list">
-        ${players.map((player, index) => `
+        ${players.map((player, index) => {
+          const escapedPlayer = escapeHtml(player);
+          // For JavaScript strings, we need to escape quotes and backslashes
+          const jsEscapedPlayer = player.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+          return `
           <li class="player-item" id="player-${index}">
-            <span class="player-name" id="name-${index}">${player}</span>
-            <input type="text" class="edit-input" id="edit-${index}" value="${player}" style="display:none;">
+            <span class="player-name" id="name-${index}">${escapedPlayer}</span>
+            <input type="text" class="edit-input" id="edit-${index}" value="${escapedPlayer}" style="display:none;">
             <button onclick="editPlayer(${index})">Edit</button>
             <button class="save-btn" id="save-${index}" onclick="savePlayer(${index})" style="display:none;">Save</button>
             <button class="cancel-btn" id="cancel-${index}" onclick="cancelEdit(${index})" style="display:none;">Cancel</button>
             <form method="POST" action="/edit-players/delete" style="display:inline;">
-              <input type="hidden" name="playerName" value="${player}">
-              <button type="submit" class="delete-btn" onclick="return confirm('Are you sure you want to remove ${player}?')">Remove</button>
+              <input type="hidden" name="playerName" value="${escapedPlayer}">
+              <button type="submit" class="delete-btn" onclick="return confirm('Are you sure you want to remove ' + decodeURIComponent('${encodeURIComponent(player)}') + '?')">Remove</button>
             </form>
           </li>
-        `).join('')}
+        `;
+        }).join('')}
       </ul>
 
       <a href="/" class="back-link">← Back to Home</a>
