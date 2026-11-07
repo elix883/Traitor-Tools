@@ -67,7 +67,51 @@ let gameStarted = false;
 let traitorChat = [];       // Array of chat messages (strings)
 let murderedPlayers = [];   // Array of murdered player names in order
 
+// Backup of the game state so a server restart doesn't lose the game
+const gameStateFilePath = path.join(__dirname, 'game-state.json');
+
+function saveGameState() {
+  try {
+    const tmpPath = gameStateFilePath + '.tmp';
+    fs.writeFileSync(tmpPath, JSON.stringify({ assignments, gameStarted, traitorChat, murderedPlayers }, null, 2), 'utf8');
+    fs.renameSync(tmpPath, gameStateFilePath);
+  } catch (error) {
+    console.error('Error saving game state:', error);
+  }
+}
+
+function loadGameState() {
+  try {
+    if (!fs.existsSync(gameStateFilePath)) return;
+    const s = JSON.parse(fs.readFileSync(gameStateFilePath, 'utf8'));
+    const valid = s && typeof s.assignments === 'object' && s.assignments !== null && !Array.isArray(s.assignments) &&
+      typeof s.gameStarted === 'boolean' &&
+      Array.isArray(s.traitorChat) && s.traitorChat.every(m => typeof m === 'string') &&
+      Array.isArray(s.murderedPlayers) && s.murderedPlayers.every(m => typeof m === 'string');
+    if (!valid) {
+      console.error('Invalid game-state.json format, starting with a fresh game');
+      return;
+    }
+    assignments = s.assignments;
+    gameStarted = s.gameStarted;
+    traitorChat = s.traitorChat;
+    murderedPlayers = s.murderedPlayers;
+  } catch (error) {
+    console.error('Error loading game state:', error);
+  }
+}
+
+loadGameState();
+
 app.use(bodyParser.urlencoded({ extended: false }));
+
+// Every state change happens via POST, so back up the game once each POST has been handled
+app.use((req, res, next) => {
+  if (req.method === 'POST') {
+    res.on('finish', saveGameState);
+  }
+  next();
+});
 
 // Shared CSS styling for murder mystery theme
 const themeCSS = `
@@ -258,6 +302,9 @@ app.get('/', (req, res) => {
     <div class="container">
       <h1>🔪 Welcome to the Traitor Game 🔪</h1>
       <p>Choose your path wisely...</p>
+      <p style="font-weight: bold; color: ${gameStarted ? '#2ed573' : '#ffa502'};">
+        ${gameStarted ? '🟢 A game is in play' : '🟠 No game in play'}
+      </p>
       <ul>
         <li><a href="/admin">🎭 Admin Panel</a></li>
         <li><a href="/player">👤 Player Login</a></li>
@@ -285,7 +332,27 @@ app.get('/admin', (req, res) => {
       <form method="POST" action="/admin">
         <button type="submit">Generate Roles</button>
       </form>
+      <form method="POST" action="/admin/end-game" onsubmit="return confirm('Are you sure you want to end the game? All roles, chat and murders will be cleared.');">
+        <button type="submit">End Game</button>
+      </form>
       <p style="margin-top: 20px;"><a href="/">← Back to Home</a></p>
+    </div>
+  `);
+});
+
+// POST /admin/end-game: Clear all game state so a new game can be started
+app.post('/admin/end-game', (req, res) => {
+  gameStarted = false;
+  assignments = {};
+  traitorChat = [];
+  murderedPlayers = [];
+
+  res.send(`
+    ${themeCSS}
+    <div class="container">
+      <h2>🏁 Game Ended 🏁</h2>
+      <p>All roles have been cleared. Generate roles to start a new game.</p>
+      <p><a href="/admin">← Back to Admin</a></p>
     </div>
   `);
 });
@@ -297,7 +364,7 @@ app.post('/admin', (req, res) => {
       ${themeCSS}
       <div class="container">
         <h2>⚠️ Game Already Started ⚠️</h2>
-        <p>Refresh to reset.</p>
+        <p>End the current game from the admin panel first.</p>
         <p><a href="/admin">← Go Back</a></p>
       </div>
     `);
