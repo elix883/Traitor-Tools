@@ -327,7 +327,7 @@ app.get('/admin', (req, res) => {
       <h2>🎭 Admin Panel 🎭</h2>
       <p>The players are preset:</p>
       <ul>
-        ${players.map(name => `<li>${escapeHtml(name)}</li>`).join('')}
+        ${players.length > 0 ? players.map(name => `<li>${escapeHtml(name)}</li>`).join('') : '<li><em>No players yet. <a href="/edit-players">Add some</a>.</em></li>'}
       </ul>
       <form method="POST" action="/admin">
         <button type="submit">Generate Roles</button>
@@ -370,6 +370,17 @@ app.post('/admin', (req, res) => {
     `);
   }
   
+  if (players.length === 0) {
+    return res.send(`
+      ${themeCSS}
+      <div class="container">
+        <h2>⚠️ No Players ⚠️</h2>
+        <p>Add players before generating roles.</p>
+        <p><a href="/edit-players">📝 Edit Player List</a></p>
+      </div>
+    `);
+  }
+
   // Create a copy of the players array and shuffle it
   let names = [...players].sort(() => Math.random() - 0.5);
   
@@ -868,6 +879,12 @@ app.get('/edit-players', (req, res) => {
         }).join('')}
       </ul>
 
+      ${players.length > 0 ? `
+      <form method="POST" action="/edit-players/delete-all" onsubmit="return confirm('Are you sure you want to remove ALL players? This will also end the current game.');">
+        <button type="submit">Remove All Players</button>
+      </form>
+      ` : ''}
+
       <p style="margin-top: 20px;"><a href="/">← Back to Home</a></p>
 
       <script>
@@ -973,6 +990,20 @@ app.post('/edit-players/delete', (req, res) => {
   } else {
     res.redirect('/edit-players?error=' + encodeURIComponent('Player not found'));
   }
+});
+
+// POST /edit-players/delete-all: Remove every player
+app.post('/edit-players/delete-all', (req, res) => {
+  players = [];
+  savePlayers();
+
+  // Reset game state when player list changes
+  gameStarted = false;
+  assignments = {};
+  traitorChat = [];
+  murderedPlayers = [];
+
+  res.redirect('/edit-players?success=' + encodeURIComponent('All players removed'));
 });
 
 // POST /edit-players/update: Update a player's name
