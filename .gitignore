@@ -3,3 +3,5 @@ players.json
 package-lock.json
 .DS_Store
 *.log
+game-state.json
+game-state.json.tmp
